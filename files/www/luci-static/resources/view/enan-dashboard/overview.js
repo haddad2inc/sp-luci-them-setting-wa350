@@ -8,6 +8,27 @@ return view.extend({
   },
 
   render: function() {
+    /* The Dashboard view belongs to the A-HADDAD theme. When another theme
+       is active (menu cache may still show the entry), hand over to the
+       active theme's defaults instead of rendering an empty page. */
+    var media = '';
+    try {
+      media = (window.L && L.env && L.env.media) ? String(L.env.media) : '';
+    } catch (e) { media = ''; }
+    if (!media) {
+      media = String(document.body ? (document.body.getAttribute('data-media') || '') : '');
+    }
+
+    if (media.indexOf('enan-dashboard') === -1) {
+      var target = '/cgi-bin/luci/admin/status/overview';
+      if (window.L && typeof L.url === 'function') {
+        try { target = L.url('admin', 'status', 'overview'); } catch (e) {}
+      }
+      window.setTimeout(function() { window.location.replace(target); }, 50);
+      return E('div', { 'class': 'cbi-map', 'style': 'padding:20px' },
+        E('p', {}, _('This dashboard belongs to the A-HADDAD theme. Redirecting to the active theme overview…')));
+    }
+
     var node = E('div', { 'id': 'enan-dashboard-content' });
 
     // Wait for next frame then build dashboard if function exists

@@ -1,3 +1,13 @@
+{#
+ A-HADDAD Dashboard theme — LuCI footer template.
+
+ The LuCI dispatcher wraps this fragment with rollback/apply handling,
+ so it must stay a fragment (no <html>/<body> tags).
+-#}
+
+{%
+	const boardinfo = ubus.call('system', 'board');
+-%}
 		</main>
 	</div>
 
@@ -12,9 +22,16 @@
 					<span class="enan-footer-meta">By Haddad-inc / 780405427</span>
 				</span>
 			</a>
+			<span class="enan-footer-sep">|</span>
+			<span class="enan-footer-powered">
+				Powered by
+				<a href="https://github.com/openwrt/luci" target="_blank" rel="noreferrer">{{ version?.luciname ?? 'LuCI' }} ({{ version?.luciversion ?? '' }})</a>
+				/
+				<a href="{{ entityencode(version?.disturl ?? '#', true) }}" target="_blank" rel="noreferrer">{{ version?.distname ?? 'OpenWrt' }} {{ version?.distversion ?? '' }} ({{ version?.distrevision ?? '' }})</a>
+			</span>
 		</div>
 		<div class="enan-footer-meta" id="enan-device-info">
-			{{ (boardinfo?.model) ?? 'CF-WA350' }} • {{ (boardinfo?.system) ?? 'QCA9563' }} • {{ (boardinfo?.memory) ?? '128MB' }} RAM • {{ (boardinfo?.release?.description) ?? 'OpenWrt 24.10.8' }}
+			{{ striptags(boardinfo?.model ?? 'OpenWrt device') }} • {{ striptags(boardinfo?.system ?? '?') }} • {{ striptags(boardinfo?.release?.description ?? 'OpenWrt') }}
 		</div>
 	</footer>
 

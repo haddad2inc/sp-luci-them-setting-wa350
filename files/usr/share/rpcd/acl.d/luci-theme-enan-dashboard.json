@@ -4,6 +4,9 @@
     "read": {
       "file": {
         "/proc/cpuinfo": [ "read" ],
+        "/proc/net/dev": [ "read" ],
+        "/proc/sys/net/netfilter/nf_conntrack_count": [ "read" ],
+        "/proc/sys/net/netfilter/nf_conntrack_max": [ "read" ],
         "/sys/devices/system/cpu/*/cpufreq/*": [ "read" ],
         "/sys/devices/system/cpu/cpufreq/*": [ "read" ],
         "/sys/class/thermal/*/temp": [ "read" ],

@@ -322,8 +322,7 @@
           }),
           network: group('network', 'Network', 5, {
             interfaces: leaf('interfaces', 'Interfaces', 1),
-            wireless: leaf('wireless', 'Wireless', 2),
-            firewall: leaf('firewall', 'Firewall', 3)
+            wireless: leaf('wireless', 'Wireless', 2)
           }),
           statistics: group('statistics', 'Statistics', 6, {
             graphs: leaf('graphs', 'Graphs', 1)
