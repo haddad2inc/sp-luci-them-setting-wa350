@@ -7,7 +7,14 @@
       "path": "enan-dashboard/overview"
     },
     "depends": {
-      "acl": [ "luci-theme-enan-dashboard" ]
+      "acl": [ "luci-theme-enan-dashboard" ],
+      "uci": {
+        "luci": {
+          "main": {
+            "mediaurlbase": "/luci-static/enan-dashboard"
+          }
+        }
+      }
     }
   }
 }

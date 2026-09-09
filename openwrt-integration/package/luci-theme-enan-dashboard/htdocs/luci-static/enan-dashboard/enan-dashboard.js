@@ -88,8 +88,14 @@
     });
   }
 
+  /* Translation helper: use LuCI's _() once luci.js has loaded the
+     catalog, fall back to the raw string otherwise. Keeps the status
+     fallback working for every UI language (not only English). */
+  function _t(text) {
+    return (typeof window._ === 'function') ? window._(text) : text;
+  }
+
   function markStatusSections(root) {
-  
     if (!root || !root.querySelectorAll) return;
     const sections = [];
     if (root.matches && root.matches('.cbi-section')) sections.push(root);
@@ -97,10 +103,23 @@
 
     sections.forEach(function(section) {
       const hasTitle = Array.from(section.children).some(function(child) {
-        return child.classList && child.classList.contains('cbi-title');
+        if (child.classList && child.classList.contains('cbi-title')) return true;
+        /* Official LuCI 24.10 status includes render a bare h3 header. */
+        return child.tagName === 'H3';
       });
       if (hasTitle) section.classList.add('enan-status-section');
     });
+  }
+
+  /* Remove the translated Hide/Show toggle labels from a section heading
+     so the title can be compared in any UI language. */
+  function stripToggleLabels(text) {
+    const labels = [_t('Hide'), _t('Show'), 'Hide', 'Show'];
+    let value = String(text);
+    labels.forEach(function(label) {
+      if (label) value = value.split(label).join(' ');
+    });
+    return value.replace(/\s+/g, ' ').trim();
   }
 
   function findStatusSection(title) {
@@ -110,7 +129,7 @@
       const directText = Array.from(heading.childNodes)
         .filter(function(node) { return node.nodeType === 3; })
         .map(function(node) { return node.textContent; }).join(' ').trim();
-      const value = directText || heading.textContent.replace(/Hide|Show/g, '').trim();
+      const value = directText || stripToggleLabels(heading.textContent);
       return value === title;
     }) || null;
   }
@@ -124,7 +143,7 @@
     return Array.from(document.querySelectorAll('.cbi-section .cbi-title h3')).some(function(heading) {
       const textNodes = Array.from(heading.childNodes).filter(function(node) { return node.nodeType === 3; });
       const directText = textNodes.map(function(node) { return node.textContent; }).join(' ').trim();
-      const value = directText || heading.textContent.replace(/Hide|Show/g, '').trim();
+      const value = directText || stripToggleLabels(heading.textContent);
       return value === title;
     });
   }
@@ -146,7 +165,7 @@
     titleText.textContent = title;
     const hideText = document.createElement('span');
     hideText.className = 'label';
-    hideText.textContent = 'Hide';
+    hideText.textContent = _t('Hide');
     heading.appendChild(titleText);
     heading.appendChild(hideText);
     titleBox.appendChild(heading);
@@ -189,7 +208,12 @@
     if (!document.body || !/node-admin-status|admin[\\/-]status/.test(document.body.className + ' ' + (document.body.dataset.page || '')))
       return;
     if (document.body.dataset.enanStatusFallbackRequested === '1') return;
-    if (statusSectionHasContent('Memory') && statusSectionHasContent('Storage')) return;
+    /* Never inject while the real view is still loading ("Loading view…")
+       or after it rendered its own include cards (LuCI 24.10 DOM:
+       section > h3 + div > table). The theme CSS styles those natively. */
+    if (document.querySelector('#view .spinning')) return;
+    if (document.querySelector('#view .cbi-section')) return;
+    if (statusSectionHasContent(_t('Memory')) && statusSectionHasContent(_t('Storage'))) return;
     if (typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function') return;
 
     document.body.dataset.enanStatusFallbackRequested = '1';
@@ -199,6 +223,12 @@
       return (L.resolveDefault ? L.resolveDefault(promise, fallback) : Promise.resolve(promise).catch(function() { return fallback; }));
     };
 
+    /* Section titles are compared through the translation function so the
+       fallback also works when the UI language is not English. The strings
+       below match the official luci-mod-status catalog keys. */
+    const memoryTitle = _t('Memory');
+    const storageTitle = _t('Storage');
+
     Promise.all([resolve(infoCall(), {}), resolve(mountsCall(), [])]).then(function(data) {
       const info = data[0] && typeof data[0] === 'object' ? data[0] : {};
       const memory = info.memory && typeof info.memory === 'object' ? info.memory : {};
@@ -207,34 +237,34 @@
       const host = document.querySelector('#view .includes') || document.querySelector('#view .cbi-map') || document.querySelector('#view') || document.getElementById('maincontent');
       if (!host) return;
 
-      if (!statusSectionHasContent('Memory')) {
+      if (!statusSectionHasContent(memoryTitle)) {
         const total = Number(memory.total) || 0;
         const free = memory.available != null ? Number(memory.available) : ((Number(memory.free) || 0) + (Number(memory.buffered) || 0));
         const used = Math.max(0, total - (Number(memory.free) || 0));
         const rows = [
-          { name: 'Total Available', used: free, total: total },
-          { name: 'Used', used: used, total: total }
+          { name: _t('Total available'), used: free, total: total },
+          { name: _t('Used'), used: used, total: total }
         ];
-        if (Number(memory.buffered) > 0) rows.push({ name: 'Buffered', used: Number(memory.buffered), total: total });
-        if (Number(memory.cached) > 0) rows.push({ name: 'Cached', used: Number(memory.cached), total: total });
-        const existingMemory = findStatusSection('Memory');
+        if (Number(memory.buffered) > 0) rows.push({ name: _t('Buffered'), used: Number(memory.buffered), total: total });
+        if (Number(memory.cached) > 0) rows.push({ name: _t('Cached'), used: Number(memory.cached), total: total });
+        const existingMemory = findStatusSection(memoryTitle);
         if (existingMemory) existingMemory.appendChild(createStatusPanel('', rows).querySelector('.table'));
-        else host.appendChild(createStatusPanel('Memory', rows));
+        else host.appendChild(createStatusPanel(memoryTitle, rows));
       }
 
-      if (!statusSectionHasContent('Storage')) {
+      if (!statusSectionHasContent(storageTitle)) {
         const rows = [
-          { name: 'Disk space', used: (Number(root.used) || 0) * 1024, total: (Number(root.total) || 0) * 1024 },
-          { name: 'Temp space', used: (Number(tmp.used) || 0) * 1024, total: (Number(tmp.total) || 0) * 1024 }
+          { name: _t('Disk space'), used: (Number(root.used) || 0) * 1024, total: (Number(root.total) || 0) * 1024 },
+          { name: _t('Temp space'), used: (Number(tmp.used) || 0) * 1024, total: (Number(tmp.total) || 0) * 1024 }
         ];
         const mounts = Array.isArray(data[1]) ? data[1] : [];
         mounts.forEach(function(entry) {
           if (!entry || ['/rom', '/tmp', '/dev', '/overlay', '/'].indexOf(entry.mount) >= 0) return;
           rows.push({ name: (entry.device || 'mount') + ' (' + (entry.mount || '') + ')', used: Math.max(0, (Number(entry.size) || 0) - (Number(entry.free) || 0)) / 1024, total: (Number(entry.size) || 0) / 1024 });
         });
-        const existingStorage = findStatusSection('Storage');
+        const existingStorage = findStatusSection(storageTitle);
         if (existingStorage) existingStorage.appendChild(createStatusPanel('', rows).querySelector('.table'));
-        else host.appendChild(createStatusPanel('Storage', rows));
+        else host.appendChild(createStatusPanel(storageTitle, rows));
       }
     }).catch(function() {});
   }
@@ -294,6 +324,40 @@
       userBtn.addEventListener('click', function() {
         window.location.href = getLogoutUrl();
       });
+    }
+
+    /* Mobile drawer: the sidebar becomes an off-canvas panel toggled by
+       the hamburger button; the top navigation is hidden on phones. */
+    const menuBtn = document.getElementById('enan-menu-btn');
+    if (menuBtn && !menuBtn.dataset.enanBound) {
+      menuBtn.dataset.enanBound = '1';
+      let backdrop = document.querySelector('.enan-backdrop');
+      if (!backdrop && document.body) {
+        backdrop = document.createElement('div');
+        backdrop.className = 'enan-backdrop';
+        document.body.appendChild(backdrop);
+      }
+      const closeSidebar = function() {
+        if (!document.body) return;
+        document.body.classList.remove('enan-sidebar-open');
+        menuBtn.setAttribute('aria-expanded', 'false');
+      };
+      const toggleSidebar = function() {
+        if (!document.body) return;
+        const open = document.body.classList.toggle('enan-sidebar-open');
+        menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      menuBtn.addEventListener('click', toggleSidebar);
+      if (backdrop) backdrop.addEventListener('click', closeSidebar);
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') closeSidebar();
+      });
+      const sidebar = document.getElementById('enan-sidebar');
+      if (sidebar) {
+        sidebar.addEventListener('click', function(event) {
+          if (event.target && event.target.closest && event.target.closest('a')) closeSidebar();
+        });
+      }
     }
   }
 

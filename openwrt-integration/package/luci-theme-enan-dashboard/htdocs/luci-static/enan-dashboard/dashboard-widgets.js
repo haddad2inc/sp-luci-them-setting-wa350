@@ -1,6 +1,20 @@
 /* ============================================
    ENAN Dashboard Live Widgets
-   OpenWrt 24.10 LuCI
+   OpenWrt 24.10 LuCI — v3.5.2
+
+   Data sources follow the official LuCI views and are redundant so a
+   missing source never blanks the panels:
+     * luci-rpc getNetworkDevices   -> per-netdev counters/carrier/speed
+     * /proc/net/dev (single file)  -> counter fallback when ubus lacks data
+     * luci getSwconfigPortState    -> switch link state (Switch page logic)
+     * luci getBuiltinEthernetPorts -> physical ports on DSA targets
+     * uci network switch_vlan      -> port-to-VLAN-device mapping for
+                                       per-port byte counters
+
+   v3.5.2:
+   * Redundant counter sources (ubus + /proc/net/dev).
+   * Switch ports show link (green) with tolerant parsing and carrier
+     fallback; per-port totals come from the port's VLAN device.
    ============================================ */
 
 (function() {
@@ -8,11 +22,12 @@
 
   const icons = {
     cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 14h3"/><path d="M1 9h3"/><path d="M1 14h3"/></svg>',
+    conntrack: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><circle cx="12" cy="12" r="3"/></svg>',
     memory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01"/><path d="M10 10h.01"/><path d="M14 10h.01"/><path d="M18 10h.01"/></svg>',
-    wifi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>',
+    wifi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y="20" x2="12.01" y2="20"/></svg>',
     traffic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
     system: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
-    wireless: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>',
+    wireless: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y="20" x2="12.01" y2="20"/></svg>',
     network: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="1"/><path d="M5 12a7 7 0 0 1 7-7"/><path d="M12 19a7 7 0 0 0 7-7"/></svg>',
     wan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
     lan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>'
@@ -45,6 +60,12 @@
     return (amount >= 10 || index === 0 ? amount.toFixed(0) : amount.toFixed(1)) + ' ' + units[index];
   }
 
+  function formatRate(bytesPerSec) {
+    if (!isNumber(bytesPerSec) || bytesPerSec < 0) return '0 B/s';
+    if (bytesPerSec < 100) return Math.round(bytesPerSec) + ' B/s';
+    return formatBytes(bytesPerSec) + '/s';
+  }
+
   function formatMemoryMB(bytes) {
     const value = Math.max(0, toNumber(bytes, 0)) / (1024 * 1024);
     if (value <= 0) return '0 MB';
@@ -72,6 +93,13 @@
     return value && typeof value === 'object' ? value : {};
   }
 
+  /* lenient truthy for ubus link fields (true / 1 / "up") */
+  function linkUp(value) {
+    return value === true || value === 1 || value === '1' || value === 'up';
+  }
+
+  /* ── ubus data sources (same as the official LuCI views) ───────── */
+
   function callRpc(object, method) {
     if (typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function')
       return Promise.resolve({});
@@ -86,6 +114,122 @@
     } catch (error) {
       return Promise.resolve({});
     }
+  }
+
+  function callNetworkDevices() {
+    if (typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function')
+      return Promise.resolve({});
+    try {
+      const call = L.rpc.declare({ object: 'luci-rpc', method: 'getNetworkDevices', expect: { '': {} } });
+      return L.resolveDefault(call(), {});
+    } catch (error) {
+      return Promise.resolve({});
+    }
+  }
+
+  function callBuiltinPorts() {
+    if (typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function') return Promise.resolve([]);
+    try {
+      const call = L.rpc.declare({ object: 'luci', method: 'getBuiltinEthernetPorts', expect: { result: [] } });
+      return L.resolveDefault(call(), []).then(function(result) {
+        return Array.isArray(result) ? result : [];
+      });
+    } catch (error) { return Promise.resolve([]); }
+  }
+
+  function loadSwitchData() {
+    if (typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function')
+      return Promise.resolve({ ports: [], haveStates: false });
+
+    const callState = L.rpc.declare({ object: 'luci', method: 'getSwconfigPortState', params: ['switch'], expect: { result: [] } });
+
+    const loadTopologies = (typeof L.require === 'function')
+      ? L.require('network').then(function(network) {
+          return (network && typeof network.getSwitchTopologies === 'function')
+            ? L.resolveDefault(network.getSwitchTopologies(), {})
+            : {};
+        }).catch(function() { return {}; })
+      : Promise.resolve({});
+
+    return loadTopologies.then(function(topologies) {
+      const names = Object.keys(safeObject(topologies));
+      if (!names.length) return { ports: [], haveStates: false };
+      return Promise.all(names.map(function(switchName) {
+        const topology = safeObject(topologies[switchName]);
+        return L.resolveDefault(callState(switchName), []).then(function(states) {
+          const stateList = Array.isArray(states) ? states : [];
+          const haveStates = stateList.length > 0;
+
+          /* Some swconfig drivers emit repeated blocks per port (an empty
+             one first, then the real link state). The official Switch page
+             applies every block in order, so the last one wins; here the
+             blocks are aggregated per port: any "link up" block marks the
+             port up, with the speed/duplex taken from the live block. */
+          const byPort = {};
+          stateList.forEach(function(item) {
+            const p = Number(item && item.port);
+            if (!isFinite(p)) return;
+            const cur = byPort[p] || (byPort[p] = { link: false, speed: null, duplex: null });
+            if (linkUp(item && item.link)) {
+              cur.link = true;
+              if (Number(item.speed) > 0) cur.speed = Number(item.speed);
+              if (item.duplex) cur.duplex = (item.duplex === true ? 'full' : String(item.duplex));
+            } else if (cur.speed == null && Number(item.speed) > 0) {
+              cur.speed = Number(item.speed);
+            }
+          });
+
+          const ports = (Array.isArray(topology.ports) ? topology.ports : []).map(function(port) {
+            const portNumber = Number(port && (port.num != null ? port.num : (port.port != null ? port.port : port.idx)));
+            const state = safeObject(byPort[portNumber]);
+            const label = String(port && (port.label || port.name || '') || '').trim();
+            if (/cpu/i.test(label)) return null;
+            const lower = label.toLowerCase();
+            return {
+              port: portNumber,
+              label: label || ('Port ' + portNumber),
+              role: /wan/i.test(label) ? 'wan' : (/lan/i.test(label) ? 'lan' : 'unknown'),
+              link: state.link === true,
+              speed: state.speed,
+              duplex: state.duplex
+            };
+          }).filter(Boolean);
+          return ports.map(function(p) { p.haveStates = haveStates; return p; });
+        });
+      })).then(function(groups) {
+        const ports = groups.reduce(function(all, group) { return all.concat(group); }, []);
+        const haveStates = ports.some(function(p) { return p.haveStates; });
+        return { ports: ports, haveStates: haveStates };
+      });
+    }).catch(function() { return { ports: [], haveStates: false }; });
+  }
+
+  /* Every non-CPU member port of a switch_vlan maps to eth0.<vid> so the
+     VLAN byte counters can be shown under its ports. */
+  function loadVlanPortMap() {
+    if (typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function') return Promise.resolve({});
+    try {
+      const call = L.rpc.declare({ object: 'uci', method: 'get', params: ['config'], expect: { values: {} } });
+      return L.resolveDefault(call('network'), {}).then(function(reply) {
+        const values = safeObject(safeObject(reply).values);
+        const map = {};
+        Object.keys(values).forEach(function(section) {
+          const item = safeObject(values[section]);
+          if (item['.type'] !== 'switch_vlan') return;
+          const vid = item.vid != null ? item.vid : item.vlan;
+          if (vid == null) return;
+          const tokens = String(item.ports || '').trim().split(/\s+/).filter(Boolean);
+          const tagged = tokens.filter(function(token) { return /t$/.test(token); });
+          const cpuToken = tagged.length === 1 ? tagged[0] : null;
+          tokens.forEach(function(token) {
+            if (token === cpuToken) return;
+            const num = Number(token.replace(/[tu]$/, ''));
+            if (isFinite(num) && map[num] == null) map[num] = String(vid);
+          });
+        });
+        return map;
+      });
+    } catch (error) { return Promise.resolve({}); }
   }
 
   function callAssocList(device) {
@@ -108,143 +252,81 @@
     }
   }
 
-  function discoverPhysicalPorts() {
-    if (typeof L === 'undefined' || typeof L.require !== 'function') return Promise.resolve([]);
-    return L.require('fs').then(function(fs) {
-      return L.resolveDefault(fs.list('/sys/class/net'), []).then(function(entries) {
-        const result = [];
-        const seen = {};
-        const list = Array.isArray(entries) ? entries : [];
-        list.forEach(function(entry) {
-          const name = String(entry && entry.name || '');
-          if (!name || /^(lo|br[-.]|bond|ppp|wlan|phy|sit|tun|tap|ifb|docker|veth)/i.test(name)) return;
-          if (!/^(eth|lan|wan|port|sw|en)/i.test(name)) return;
-          if (seen[name]) return;
-          seen[name] = true;
-          const lower = name.toLowerCase();
-          result.push({ device: name, role: lower.indexOf('wan') === 0 ? 'wan' : (lower.indexOf('lan') === 0 ? 'lan' : 'unknown'), label: name });
-        });
-        return result;
-      });
-    }).catch(function() { return []; });
-  }
-
-  function callBuiltinPorts() {
-    if (typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function') return discoverPhysicalPorts();
-    try {
-      const call = L.rpc.declare({ object: 'luci', method: 'getBuiltinEthernetPorts', expect: { result: [] } });
-      return L.resolveDefault(call(), null).then(function(result) {
-        return Array.isArray(result) && result.length ? result : discoverPhysicalPorts();
-      });
-    } catch (error) { return discoverPhysicalPorts(); }
-  }
-
-  function callDeviceStatus(device) {
-    if (!device || typeof L === 'undefined' || !L.rpc || typeof L.rpc.declare !== 'function') return Promise.resolve({});
-    try {
-      const call = L.rpc.declare({ object: 'network.device', method: 'status', params: ['name'], expect: { '': {} } });
-      return L.resolveDefault(call(device), {});
-    } catch (error) { return Promise.resolve({}); }
-  }
-
-  function readPhysicalPortStatus(fs, device) {
-    const base = '/sys/class/net/' + device;
-    return Promise.all([
-      readText(fs, base + '/carrier'),
-      readText(fs, base + '/operstate'),
-      readText(fs, base + '/speed'),
-      readText(fs, base + '/statistics/rx_bytes'),
-      readText(fs, base + '/statistics/tx_bytes')
-    ]).then(function(values) {
-      const carrierText = String(values[0] == null ? '' : values[0]).trim();
-      const operstate = String(values[1] == null ? '' : values[1]).trim().toLowerCase();
-      const carrier = carrierText === '1';
-      const speed = Number(String(values[2] == null ? '' : values[2]).trim());
-      return {
-        carrier: carrier,
-        operstate: operstate,
-        up: carrier,
-        speed: isFinite(speed) && speed > 0 ? speed : null,
-        rx: toNumber(values[3], 0),
-        tx: toNumber(values[4], 0)
-      };
-    });
-  }
-
-  function loadPhysicalPortStatuses(ports) {
-    const list = Array.isArray(ports) ? ports : [];
-    if (!list.length || typeof L === 'undefined' || typeof L.require !== 'function') return Promise.resolve({});
-    return L.require('fs').then(function(fs) {
-      return Promise.all(list.map(function(port) {
-        const device = String(port && (port.device || port.name) || '');
-        if (!device) return Promise.resolve(null);
-        return readPhysicalPortStatus(fs, device).then(function(status) {
-          return { device: device, status: status };
-        });
-      }));
-    }).then(function(results) {
-      const map = {};
-      results.forEach(function(item) { if (item && item.device) map[item.device] = item.status; });
-      return map;
-    }).catch(function() { return {}; });
-  }
-
-  function loadSwitchPortStates() {
-    if (typeof L === 'undefined' || typeof L.require !== 'function' || !L.rpc || typeof L.rpc.declare !== 'function') return Promise.resolve([]);
-    return L.require('network').then(function(network) {
-      if (!network || typeof network.getSwitchTopologies !== 'function') return [];
-      return network.getSwitchTopologies().then(function(topologies) {
-        const callState = L.rpc.declare({ object: 'luci', method: 'getSwconfigPortState', params: ['switch'], expect: { result: [] } });
-        return Promise.all(Object.keys(topologies || {}).map(function(switchName) {
-          const topology = safeObject(topologies[switchName]);
-          return L.resolveDefault(callState(switchName), []).then(function(states) {
-            const stateList = Array.isArray(states) ? states : [];
-            return (Array.isArray(topology.ports) ? topology.ports : []).map(function(port) {
-              const portNumber = Number(port && (port.num != null ? port.num : port.port));
-              const state = stateList.find(function(item) { return Number(item && item.port) === portNumber; }) || safeObject(stateList[portNumber]);
-              const label = String(port && (port.label || port.name || '') || '').trim();
-              if (/cpu/i.test(label)) return null;
-              const role = /wan/i.test(label) ? 'wan' : (/lan/i.test(label) ? 'lan' : 'unknown');
-              const link = safeObject(state && state.link);
-              const carrier = !!(state && (state.link === true || link.carrier === true));
-              return {
-                switchName: switchName,
-                port: portNumber,
-                label: label || ('Port ' + portNumber),
-                role: role,
-                carrier: carrier,
-                speed: Number(state && state.speed) > 0 ? Number(state.speed) : null,
-                duplex: state && state.duplex ? state.duplex : null,
-                rx: 0,
-                tx: 0
-              };
-            }).filter(Boolean);
-          });
-        })).then(function(groups) {
-          return groups.reduce(function(all, group) { return all.concat(group); }, []);
-        });
-      });
-    }).catch(function() { return []; });
-  }
-
-  function loadDeviceStatuses(ports) {
-    const list = Array.isArray(ports) ? ports : [];
-    if (!list.length) return callRpc('network.device', 'status');
-    return Promise.all(list.map(function(port) {
-      const item = safeObject(port);
-      const device = item.device || item.name;
-      return callDeviceStatus(device).then(function(status) { return { device: device, status: status }; });
-    })).then(function(results) {
-      const map = {};
-      results.forEach(function(item) { if (item.device) map[item.device] = item.status; });
-      return map;
-    });
-  }
+  /* ── sysfs/procfs helpers (exact ACL paths only) ───────────────── */
 
   function readText(fs, path) {
     try { return L.resolveDefault(fs.read(path), ''); }
     catch (error) { return Promise.resolve(''); }
   }
+
+  /* Single-file counter source: works wherever the ACL grants the exact
+     path, independent of ubus. */
+  function readProcNetDev(fs) {
+    return readText(fs, '/proc/net/dev').then(function(text) {
+      const map = {};
+      String(text || '').split('\n').forEach(function(line) {
+        const idx = line.indexOf(':');
+        if (idx < 0) return;
+        const name = line.slice(0, idx).trim();
+        if (!name) return;
+        const fields = line.slice(idx + 1).trim().split(/\s+/);
+        if (fields.length < 10) return;
+        map[name] = { rx: toNumber(fields[0], 0), tx: toNumber(fields[8], 0) };
+      });
+      return map;
+    }).catch(function() { return {}; });
+  }
+
+  function readConntrack(fs) {
+    return Promise.all([
+      readText(fs, '/proc/sys/net/netfilter/nf_conntrack_count'),
+      readText(fs, '/proc/sys/net/netfilter/nf_conntrack_max')
+    ]).then(function(values) {
+      const count = Number(String(values[0] || '').trim());
+      const max = Number(String(values[1] || '').trim());
+      if (!isFinite(count) || count < 0) return null;
+      return { count: count, max: isFinite(max) && max > 0 ? max : null };
+    }).catch(function() { return null; });
+  }
+
+  /* Merge ubus getNetworkDevices with /proc/net/dev into one dev map. */
+  function buildDevMap(netdevs, procdevs) {
+    const map = {};
+    const names = {};
+    Object.keys(safeObject(netdevs)).forEach(function(n) { names[n] = true; });
+    Object.keys(safeObject(procdevs)).forEach(function(n) { names[n] = true; });
+    Object.keys(names).forEach(function(name) {
+      const dev = safeObject(safeObject(netdevs)[name]);
+      const stats = safeObject(dev.stats);
+      const link = safeObject(dev.link);
+      const flags = safeObject(dev.flags);
+      const proc = safeObject(safeObject(procdevs)[name]);
+      const hasUbus = Object.keys(dev).length > 0;
+      const hasProc = Object.keys(proc).length > 0;
+      map[name] = {
+        present: hasUbus || hasProc,
+        rx: hasUbus ? toNumber(stats.rx_bytes, 0) : toNumber(proc.rx, 0),
+        tx: hasUbus ? toNumber(stats.tx_bytes, 0) : toNumber(proc.tx, 0),
+        carrier: !!link.carrier,
+        up: !!(flags.up || link.carrier),
+        speed: Number(link.speed) > 0 ? Number(link.speed) : null,
+        duplex: link.duplex && link.duplex !== 'unknown' ? link.duplex : null
+      };
+    });
+    return map;
+  }
+
+  function devAt(devMap, name) {
+    return name ? safeObject(devMap[name]) : safeObject(null);
+  }
+
+  /* Top-level physical devices only, so VLAN/bridge children are not
+     double counted in the boot-time traffic total. */
+  function isPhysicalNetdev(name) {
+    return /^(eth|wlan|wwan|usb|ppp|tun)[0-9]*$/.test(name);
+  }
+
+  /* ── hardware metrics (cpu freq / temperature) ─────────────────── */
 
   function parseCpuInfoFrequency(value) {
     const text = String(value == null ? '' : value);
@@ -289,70 +371,57 @@
     }).catch(function() { return null; });
   }
 
-  function readHardwareMetrics() {
+  function readHardwareMetrics(fs) {
     const empty = { cpuMHz: null, temperature: null };
-    if (typeof L === 'undefined' || typeof L.require !== 'function') return Promise.resolve(empty);
-    return L.require('fs').then(function(fs) {
-      const cpuPaths = [
-        '/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq',
-        '/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq',
-        '/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq',
-        '/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq',
-        '/proc/cpuinfo'
-      ];
-      return Promise.all(cpuPaths.map(function(path) { return readText(fs, path); })).then(function(cpuValues) {
-        let cpuMHz = null;
-        for (let i = 0; i < cpuValues.length && cpuMHz == null; i++) {
-          cpuMHz = i === cpuValues.length - 1 ? parseCpuInfoFrequency(cpuValues[i]) : parseFrequencyMHz(cpuValues[i]);
-        }
-        return L.resolveDefault(fs.list('/sys/class/thermal'), []).then(function(entries) {
-          const zones = Array.isArray(entries) ? entries.filter(function(entry) {
-            return entry && /^thermal_zone[0-9]+$/.test(entry.name || '');
-          }) : [];
-          return Promise.all(zones.map(function(zone) {
-            const base = '/sys/class/thermal/' + zone.name;
-            return Promise.all([readText(fs, base + '/temp'), readText(fs, base + '/type')]);
-          })).then(function(values) {
-            let temperature = null;
-            let fallback = null;
-            values.forEach(function(pair) {
-              const value = parseTemperatureC(pair[0]);
-              const type = String(pair[1] || '').toLowerCase();
-              if (value == null) return;
-              if (fallback == null) fallback = value;
-              if (temperature == null && (type.indexOf('cpu') >= 0 || type.indexOf('soc') >= 0 || type.indexOf('package') >= 0)) temperature = value;
-            });
-            if (temperature != null || fallback != null)
-              return { cpuMHz: cpuMHz, temperature: temperature == null ? fallback : temperature };
-            return readHwmonTemperature(fs).then(function(hwmonTemperature) {
-              return { cpuMHz: cpuMHz, temperature: hwmonTemperature };
-            });
+    const cpuPaths = [
+      '/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq',
+      '/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq',
+      '/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq',
+      '/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq',
+      '/proc/cpuinfo'
+    ];
+    return Promise.all(cpuPaths.map(function(path) { return readText(fs, path); })).then(function(cpuValues) {
+      let cpuMHz = null;
+      for (let i = 0; i < cpuValues.length && cpuMHz == null; i++) {
+        cpuMHz = i === cpuValues.length - 1 ? parseCpuInfoFrequency(cpuValues[i]) : parseFrequencyMHz(cpuValues[i]);
+      }
+      return L.resolveDefault(fs.list('/sys/class/thermal'), []).then(function(entries) {
+        const zones = Array.isArray(entries) ? entries.filter(function(entry) {
+          return entry && /^thermal_zone[0-9]+$/.test(entry.name || '');
+        }) : [];
+        return Promise.all(zones.map(function(zone) {
+          const base = '/sys/class/thermal/' + zone.name;
+          return Promise.all([readText(fs, base + '/temp'), readText(fs, base + '/type')]);
+        })).then(function(values) {
+          let temperature = null;
+          let fallback = null;
+          values.forEach(function(pair) {
+            const value = parseTemperatureC(pair[0]);
+            const type = String(pair[1] || '').toLowerCase();
+            if (value == null) return;
+            if (fallback == null) fallback = value;
+            if (temperature == null && (type.indexOf('cpu') >= 0 || type.indexOf('soc') >= 0 || type.indexOf('package') >= 0)) temperature = value;
           });
-        }).catch(function() {
+          if (temperature != null || fallback != null)
+            return { cpuMHz: cpuMHz, temperature: temperature == null ? fallback : temperature };
           return readHwmonTemperature(fs).then(function(hwmonTemperature) {
             return { cpuMHz: cpuMHz, temperature: hwmonTemperature };
           });
+        });
+      }).catch(function() {
+        return readHwmonTemperature(fs).then(function(hwmonTemperature) {
+          return { cpuMHz: cpuMHz, temperature: hwmonTemperature };
         });
       });
     }).catch(function() { return empty; });
   }
 
-  function extractCpuFrequency(board, systemInfo, hardware) {
+  function extractCpuFrequency(systemInfo, hardware) {
     const hardwareInfo = safeObject(hardware);
     if (isNumber(hardwareInfo.cpuMHz) && hardwareInfo.cpuMHz > 0)
       return Math.round(hardwareInfo.cpuMHz) + ' MHz';
-    const boardInfo = safeObject(board);
     const sysInfo = safeObject(systemInfo);
-    const cpuInfo = safeObject(boardInfo.cpuinfo);
-    const candidates = [
-      boardInfo.cpu_mhz,
-      boardInfo.cpufreq,
-      cpuInfo.mhz,
-      sysInfo.cpu_mhz,
-      sysInfo.cpufreq,
-      cpuInfo.frequency
-    ];
-
+    const candidates = [sysInfo.cpu_mhz, sysInfo.cpufreq];
     for (let i = 0; i < candidates.length; i++) {
       if (isNumber(candidates[i]) && candidates[i] > 0)
         return Math.round(candidates[i]) + ' MHz';
@@ -361,44 +430,10 @@
         if (match) return Math.round(Number(match[1])) + ' MHz';
       }
     }
-
-    return 'N/A';
-  }
-
-  function getMemory(systemInfo) {
-    const memory = safeObject(safeObject(systemInfo).memory);
-    // LuCI system.info reports memory counters in bytes. Storage root/tmp
-    // counters are handled separately because those are exposed in KiB.
-    const total = toNumber(memory.total, 0);
-    const free = memory.free != null ? toNumber(memory.free, 0) : toNumber(memory.available, 0);
-    const used = Math.max(0, total - free);
-    return { total: total, free: free, used: used };
-  }
-
-  function getStorage(systemInfo, key) {
-    const item = safeObject(safeObject(systemInfo)[key]);
-    const total = toNumber(item.total, 0) * 1024;
-    const free = toNumber(item.free, 0) * 1024;
-    const used = item.used != null ? toNumber(item.used, 0) * 1024 : Math.max(0, total - free);
-    return { total: total, free: free, used: used };
-  }
-
-  function getLoad(systemInfo) {
-    const load = Array.isArray(safeObject(systemInfo).load) ? systemInfo.load[0] : 0;
-    return clamp(toNumber(load, 0) / 65535, 0, 1);
-  }
-
-  function getTemperature(systemInfo, board, hardware) {
-    const hardwareInfo = safeObject(hardware);
-    if (isNumber(hardwareInfo.temperature)) return Math.round(hardwareInfo.temperature);
-    const sysInfo = safeObject(systemInfo);
-    const boardInfo = safeObject(board);
-    const candidates = [sysInfo.temperature, sysInfo.cpu_temperature, boardInfo.temperature];
-    for (let i = 0; i < candidates.length; i++) {
-      if (isNumber(candidates[i])) return Math.round(candidates[i]);
-    }
     return null;
   }
+
+  /* ── wireless ──────────────────────────────────────────────────── */
 
   function getWirelessEntries(devices) {
     const source = safeObject(devices);
@@ -471,169 +506,69 @@
     }));
   }
 
-  function getDeviceStatusMap(rawStatus) {
-    const map = {};
-    if (Array.isArray(rawStatus)) {
-      rawStatus.forEach(function(item) {
-        if (item && item.name) map[item.name] = item;
-      });
-      return map;
-    }
+  /* ── throughput sampling between update ticks ──────────────────── */
 
-    const source = safeObject(rawStatus);
-    const devices = source.devices && typeof source.devices === 'object' ? source.devices : source;
-    Object.keys(devices).forEach(function(name) {
-      if (devices[name] && typeof devices[name] === 'object') map[name] = devices[name];
-    });
-    return map;
-  }
+  const trafficSamples = {};
 
-  function mergePhysicalPortSources(portData, networkDevices, netIfaces, board) {
-    const merged = [];
-    const seen = {};
-    const add = function(device, label, role) {
-      const name = String(device || '');
-      if (!name || seen[name] || /^(lo|br[-.]|bond|ppp|wlan|phy|sit|tun|tap|ifb|docker|veth)/i.test(name)) return;
-      if (/\\.([0-9]+)$/.test(name)) return;
-      if (!/^(eth|lan|wan|port|sw|en)/i.test(name)) return;
-      seen[name] = true;
-      const lower = name.toLowerCase();
-      merged.push({ device: name, label: label || name, role: role || (lower.indexOf('wan') === 0 ? 'wan' : (lower.indexOf('lan') === 0 ? 'lan' : 'unknown')) });
-    };
-
-    (Array.isArray(portData) ? portData : []).forEach(function(port) {
-      const item = safeObject(port);
-      add(item.device || item.name, item.label || item.name || item.device, item.role);
-    });
-
-    const deviceMap = Array.isArray(networkDevices) ? networkDevices : safeObject(networkDevices);
-    if (Array.isArray(deviceMap)) {
-      deviceMap.forEach(function(item) {
-        const value = safeObject(item);
-        add(value.name || value.device || value.ifname, value.name || value.device || value.ifname, value.role);
-      });
-    } else {
-      Object.keys(deviceMap).forEach(function(name) {
-        const value = safeObject(deviceMap[name]);
-        add(value.name || name, value.name || name, value.role);
-      });
-    }
-
-    const interfaces = Array.isArray(safeObject(netIfaces).interface) ? netIfaces.interface : [];
-    interfaces.forEach(function(item) {
-      const value = safeObject(item);
-      add(value.device || value.l3_device, value.device || value.l3_device, value.role);
-    });
-
-    if (!merged.length) {
-      const network = safeObject(safeObject(board).network);
-      ['lan', 'wan'].forEach(function(role) {
-        const item = safeObject(network[role]);
-        if (Array.isArray(item.ports)) item.ports.forEach(function(device) { add(device, device, role); });
-        else add(item.device, role.toUpperCase(), role);
-      });
-    }
-    return merged;
-  }
-
-  function getInterfaceRows(netIfaces, rawStatus, portData, board, switchPorts, fileStatus) {
-    const statusMap = getDeviceStatusMap(rawStatus);
-    const interfaces = Array.isArray(safeObject(netIfaces).interface) ? netIfaces.interface : [];
-    const boardNetwork = safeObject(safeObject(board).network);
-    const rows = [];
-    const ports = [];
-    const seen = {};
-
-    function addPort(device, label, role) {
-      if (!device || seen[device] || /\\.([0-9]+)$/.test(String(device))) return;
-      seen[device] = true;
-      ports.push({ device: device, label: label || device, role: role || '' });
-    }
-
-    // Preferred source: luci.getBuiltinEthernetPorts(), as used by LuCI's Port status view.
-    const builtin = Array.isArray(portData) ? portData : [];
-    builtin.forEach(function(port) {
-      const item = safeObject(port);
-      addPort(item.device || item.name, item.label || item.name || item.device, item.role);
-    });
-
-    // Fallback for boards which do not expose getBuiltinEthernetPorts().
-    if (!ports.length) {
-      ['wan', 'lan'].forEach(function(role) {
-        const item = safeObject(boardNetwork[role]);
-        if (Array.isArray(item.ports)) item.ports.forEach(function(device) { addPort(device, device, role); });
-        else addPort(item.device, role.toUpperCase(), role);
-      });
-    }
-
-    function makeRow(device, label, role, iface) {
-      const logical = safeObject(iface);
-      const status = safeObject(statusMap[device] || statusMap[logical.interface] || statusMap[label]);
-      const link = safeObject(status.link);
-      const statistics = safeObject(status.stats || status.statistics || logical.statistics);
-      const physical = safeObject(safeObject(fileStatus)[device]);
-      const hasCarrier = typeof physical.carrier === 'boolean';
-      const lower = String(label || device).toLowerCase();
-      return {
-        name: String(label || device).toUpperCase(),
-        device: device,
-        role: role || '',
-        // sysfs carrier is authoritative for a copper link; logical up state
-        // alone remains a fallback for devices without a readable carrier.
-        isUp: hasCarrier ? physical.carrier : (logical.up === true || status.up === true || status.carrier === true || link.carrier === true),
-        speed: physical.speed || logical.speed || link.speed || status.speed || null,
-        rx: physical.rx || toNumber(statistics.rx_bytes, 0),
-        tx: physical.tx || toNumber(statistics.tx_bytes, 0),
-        icon: (role === 'wan' || lower.indexOf('wan') === 0) ? icons.wan : icons.lan
-      };
-    }
-
-    // On swconfig targets, the switch port state is the authoritative source
-    // for the cable link. Do not replace these ports with eth0 VLAN rows.
-    const switchList = Array.isArray(switchPorts) ? switchPorts : [];
-    if (switchList.length) {
-      return switchList.map(function(port) {
-        const label = String(port.label || port.device || ('Port ' + port.port));
-        const lower = label.toLowerCase();
-        return {
-          name: label.toUpperCase(),
-          device: port.device || label,
-          role: port.role || (lower.indexOf('wan') >= 0 ? 'wan' : (lower.indexOf('lan') >= 0 ? 'lan' : 'unknown')),
-          isUp: port.carrier === true,
-          speed: port.speed || null,
-          rx: toNumber(port.rx, 0),
-          tx: toNumber(port.tx, 0),
-          icon: (port.role === 'wan' || lower.indexOf('wan') >= 0) ? icons.wan : icons.lan
+  function computeRates(devices, devMap) {
+    const now = Date.now();
+    const rates = {};
+    (Array.isArray(devices) ? devices : []).forEach(function(dev) {
+      const info = devAt(devMap, dev);
+      const prev = trafficSamples[dev];
+      if (prev && (now - prev.t) > 800 && info.present) {
+        const dt = (now - prev.t) / 1000;
+        rates[dev] = {
+          rx: Math.max(0, (info.rx - prev.rx) / dt),
+          tx: Math.max(0, (info.tx - prev.tx) / dt)
         };
-      });
-    }
-
-    // When physical netdev ports are known, show every one and do not replace
-    // them with a single bridge/VLAN row.
-    if (ports.length)
-      return ports.map(function(port) { return makeRow(port.device, port.label, port.role, null); });
-
-    interfaces.forEach(function(item) {
-      const iface = safeObject(item);
-      const name = iface.interface || iface.name || iface.device;
-      if (!name || name === 'loopback' || name === 'lo') return;
-      rows.push(makeRow(iface.device || name, name, name.toLowerCase().indexOf('wan') === 0 ? 'wan' : '', iface));
+      } else {
+        rates[dev] = null;
+      }
+      if (info.present) trafficSamples[dev] = { t: now, rx: info.rx, tx: info.tx };
     });
-
-    if (!rows.length) {
-      Object.keys(statusMap).forEach(function(name) {
-        const lower = name.toLowerCase();
-        if (lower === 'lo' || lower === 'loopback') return;
-        rows.push(makeRow(name, name, lower.indexOf('wan') === 0 ? 'wan' : '', null));
-      });
-    }
-    return rows;
+    return rates;
   }
 
-  function totalTraffic(rows) {
-    return rows.reduce(function(total, row) {
-      return total + toNumber(row.rx, 0) + toNumber(row.tx, 0);
-    }, 0);
+  /* ── system resources ──────────────────────────────────────────── */
+
+  function getMemory(systemInfo) {
+    const memory = safeObject(safeObject(systemInfo).memory);
+    const total = toNumber(memory.total, 0);
+    const free = memory.free != null ? toNumber(memory.free, 0) : toNumber(memory.available, 0);
+    const used = Math.max(0, total - free);
+    return { total: total, free: free, used: used };
+  }
+
+  function getStorage(systemInfo, key) {
+    const item = safeObject(safeObject(systemInfo)[key]);
+    const total = toNumber(item.total, 0) * 1024;
+    const free = toNumber(item.free, 0) * 1024;
+    const used = item.used != null ? toNumber(item.used, 0) * 1024 : Math.max(0, total - free);
+    return { total: total, free: free, used: used };
+  }
+
+  function getLoad(systemInfo) {
+    const load = Array.isArray(safeObject(systemInfo).load) ? safeObject(systemInfo).load[0] : 0;
+    return clamp(toNumber(load, 0) / 65535, 0, 1);
+  }
+
+  function getTemperature(systemInfo, board, hardware) {
+    const hardwareInfo = safeObject(hardware);
+    if (isNumber(hardwareInfo.temperature)) return Math.round(hardwareInfo.temperature);
+    const sysInfo = safeObject(systemInfo);
+    const boardInfo = safeObject(board);
+    const candidates = [sysInfo.temperature, sysInfo.cpu_temperature, boardInfo.temperature];
+    for (let i = 0; i < candidates.length; i++) {
+      if (isNumber(candidates[i])) return Math.round(candidates[i]);
+    }
+    return null;
+  }
+
+  /* ── dashboard skeleton (built once, updated in place) ─────────── */
+
+  function statCard(id, icon) {
+    return '<div class="enan-dash-card"><div class="enan-dash-card-header"><div class="enan-dash-card-icon" id="' + id + '-icon">' + icon + '</div></div><div class="enan-dash-card-value" id="' + id + '-value">N/A</div><div class="enan-dash-card-label" id="' + id + '-label">&nbsp;</div></div>';
   }
 
   function buildDashboard() {
@@ -656,6 +591,11 @@
     const grid = document.createElement('div');
     grid.className = 'enan-dash-grid';
     grid.id = 'enan-dash-grid';
+    grid.innerHTML =
+      statCard('dash-stat-cpu', icons.cpu) +
+      statCard('dash-stat-ram', icons.memory) +
+      statCard('dash-stat-clients', icons.wifi) +
+      statCard('dash-stat-traffic', icons.traffic);
     container.appendChild(grid);
 
     const sysPanel = document.createElement('div');
@@ -678,46 +618,7 @@
     window._enanDashboardInterval = setInterval(updateDashboard, 5000);
   }
 
-  function updateDashboard() {
-    if (window._enanDashboardUpdating) return;
-    if (typeof L === 'undefined' || !L.rpc) return;
-    window._enanDashboardUpdating = true;
-
-    Promise.all([
-      callRpc('system', 'info'),
-      callRpc('system', 'board'),
-      callRpc('network.interface', 'dump'),
-      callRpc('luci-rpc', 'getWirelessDevices'),
-      callBuiltinPorts(),
-      callRpc('luci-rpc', 'getNetworkDevices'),
-      readHardwareMetrics(),
-      loadSwitchPortStates()
-    ]).then(function(data) {
-      const systemInfo = safeObject(data[0]);
-      const board = safeObject(data[1]);
-      const netIfaces = safeObject(data[2]);
-      const ports = Array.isArray(data[4]) ? data[4] : [];
-      const networkDevices = data[5];
-      const physicalPorts = mergePhysicalPortSources(ports, networkDevices, netIfaces, board);
-      const hardware = safeObject(data[6]);
-      const switchPorts = Array.isArray(data[7]) ? data[7] : [];
-      return Promise.all([loadWirelessData(data[3]), loadDeviceStatuses(physicalPorts), loadPhysicalPortStatuses(physicalPorts)]).then(function(results) {
-        const wireless = results[0];
-        const deviceStatus = results[1];
-        const fileStatus = results[2];
-        const interfaceRows = getInterfaceRows(netIfaces, deviceStatus, physicalPorts, board, switchPorts, fileStatus);
-        updateHeader(systemInfo, board);
-        updateStatsGrid(systemInfo, board, hardware, wireless, interfaceRows);
-        updateSystemResources(systemInfo, board, hardware);
-        updateWirelessLoad(wireless);
-        updateNetworkInterfaces(interfaceRows);
-      });
-    }).catch(function(error) {
-      if (window.console && console.warn) console.warn('[ENAN Dashboard] Update error', error);
-    }).then(function() {
-      window._enanDashboardUpdating = false;
-    });
-  }
+  /* ── updaters ──────────────────────────────────────────────────── */
 
   function updateHeader(systemInfo, board) {
     const release = safeObject(board.release);
@@ -744,21 +645,41 @@
     }
   }
 
-  function updateStatsGrid(systemInfo, board, hardware, wireless, interfaceRows) {
-    const grid = document.getElementById('enan-dash-grid');
-    if (!grid) return;
+  function setStatCard(prefix, icon, value, label) {
+    const iconEl = document.getElementById(prefix + '-icon');
+    const valueEl = document.getElementById(prefix + '-value');
+    const labelEl = document.getElementById(prefix + '-label');
+    if (iconEl && iconEl.dataset.icon !== icon) {
+      iconEl.dataset.icon = icon;
+      iconEl.innerHTML = icon;
+    }
+    if (valueEl && valueEl.textContent !== value) valueEl.textContent = value;
+    if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
+  }
+
+  function updateStatsGrid(systemInfo, hardware, conntrack, wireless, totalTrafficBytes) {
     const memory = getMemory(systemInfo);
     const clients = wireless.reduce(function(total, item) {
       return total + (Array.isArray(item.clients) ? item.clients.length : 0);
     }, 0);
-    const traffic = totalTraffic(interfaceRows);
-    const trafficValue = traffic > 0 ? formatBytes(traffic) : '0 B';
 
-    grid.innerHTML =
-      '<div class="enan-dash-card"><div class="enan-dash-card-header"><div class="enan-dash-card-icon">' + icons.cpu + '</div></div><div class="enan-dash-card-value">' + escapeHtml(extractCpuFrequency(board, systemInfo, hardware)) + '</div><div class="enan-dash-card-label">CPU Frequency</div></div>' +
-      '<div class="enan-dash-card"><div class="enan-dash-card-header"><div class="enan-dash-card-icon">' + icons.memory + '</div></div><div class="enan-dash-card-value">' + escapeHtml(formatMemoryMB(memory.free)) + '</div><div class="enan-dash-card-label">RAM Free / ' + escapeHtml(formatMemoryMB(memory.total)) + '</div></div>' +
-      '<div class="enan-dash-card"><div class="enan-dash-card-header"><div class="enan-dash-card-icon">' + icons.wifi + '</div></div><div class="enan-dash-card-value">' + clients + '</div><div class="enan-dash-card-label">Active WiFi Clients</div></div>' +
-      '<div class="enan-dash-card"><div class="enan-dash-card-header"><div class="enan-dash-card-icon">' + icons.traffic + '</div></div><div class="enan-dash-card-value">' + escapeHtml(trafficValue) + '</div><div class="enan-dash-card-label">Total Traffic Since Boot</div></div>';
+    const cpuMHz = extractCpuFrequency(systemInfo, hardware);
+    if (cpuMHz) {
+      setStatCard('dash-stat-cpu', icons.cpu, cpuMHz, 'CPU Frequency');
+    } else if (conntrack && conntrack.count != null) {
+      setStatCard('dash-stat-cpu', icons.conntrack, String(conntrack.count),
+        conntrack.max ? 'Active Connections / ' + conntrack.max : 'Active Connections');
+    } else {
+      setStatCard('dash-stat-cpu', icons.cpu, 'N/A', 'CPU Frequency');
+    }
+
+    setStatCard('dash-stat-ram', icons.memory, formatMemoryMB(memory.free), 'RAM Free / ' + formatMemoryMB(memory.total));
+    setStatCard('dash-stat-clients', icons.wifi, String(clients), 'Active WiFi Clients');
+    setStatCard('dash-stat-traffic', icons.traffic, formatBytes(totalTrafficBytes), 'Total Traffic Since Boot');
+  }
+
+  function progressRow(label, value, percent, color) {
+    return '<div class="enan-progress-row"><div class="enan-progress-label"><span class="enan-progress-label-name">' + escapeHtml(label) + '</span><span class="enan-progress-label-value">' + escapeHtml(value) + '</span></div><div class="enan-progress-track"><div class="enan-progress-fill ' + color + '" style="width:' + clamp(percent, 0, 100) + '%"></div></div></div>';
   }
 
   function updateSystemResources(systemInfo, board, hardware) {
@@ -782,11 +703,7 @@
       progressRow('Temperature', tempText, tempPercent, 'red');
   }
 
-  function progressRow(label, value, percent, color) {
-    return '<div class="enan-progress-row"><div class="enan-progress-label"><span class="enan-progress-label-name">' + escapeHtml(label) + '</span><span class="enan-progress-label-value">' + escapeHtml(value) + '</span></div><div class="enan-progress-track"><div class="enan-progress-fill ' + color + '" style="width:' + clamp(percent, 0, 100) + '%"></div></div></div>';
-  }
-
-  function updateWirelessLoad(entries) {
+  function updateWirelessLoad(entries, rates, devMap) {
     const container = document.getElementById('enan-wireless-load');
     const badge = document.getElementById('enan-wifi-badge');
     if (!container) return;
@@ -802,9 +719,84 @@
     if (badge) badge.textContent = totalClients + ' client' + (totalClients === 1 ? '' : 's');
     container.innerHTML = entries.map(function(entry) {
       const channel = entry.channel ? 'Ch ' + entry.channel : 'Ch N/A';
-      const bitrate = entry.bitrate ? formatBytes(toNumber(entry.bitrate, 0) * 1000 / 8) + '/s' : 'N/A';
-      return '<div class="enan-wifi-item"><div class="enan-wifi-header"><div class="enan-wifi-name">' + escapeHtml(entry.ssid) + '<span class="enan-wifi-band">' + escapeHtml(bandLabel(entry)) + '</span></div><span class="enan-wifi-clients">' + entry.clients.length + ' client' + (entry.clients.length === 1 ? '' : 's') + '</span></div><div class="enan-wifi-stats"><span>↓ ' + escapeHtml(bitrate) + '</span><span>↑ N/A</span><span>' + escapeHtml(channel) + '</span></div><div class="enan-progress-track enan-wifi-bar"><div class="enan-progress-fill gold" style="width:' + wirelessLoad(entry) + '%"></div></div></div>';
+      const rate = rates[entry.ifname];
+      const info = devAt(devMap, entry.ifname);
+      const downRate = rate ? formatRate(rate.rx) : '0 B/s';
+      const upRate = rate ? formatRate(rate.tx) : '0 B/s';
+      const totals = info.present ? 'Σ ↓ ' + formatBytes(info.rx) + ' / ↑ ' + formatBytes(info.tx) : '';
+      const link = entry.bitrate ? formatBytes(toNumber(entry.bitrate, 0) * 1000 / 8) + '/s link' : '';
+      return '<div class="enan-wifi-item">' +
+        '<div class="enan-wifi-header"><div class="enan-wifi-name">' + escapeHtml(entry.ssid) + '<span class="enan-wifi-band">' + escapeHtml(bandLabel(entry)) + '</span></div>' +
+        '<span class="enan-wifi-clients">' + entry.clients.length + ' client' + (entry.clients.length === 1 ? '' : 's') + '</span></div>' +
+        '<div class="enan-wifi-stats"><span title="Download throughput">↓ ' + escapeHtml(downRate) + '</span><span title="Upload throughput">↑ ' + escapeHtml(upRate) + '</span><span>' + escapeHtml(channel) + '</span>' + (link ? '<span title="Link rate">' + escapeHtml(link) + '</span>' : '') + '</div>' +
+        (totals ? '<div class="enan-wifi-totals">' + escapeHtml(totals) + '</div>' : '') +
+        '<div class="enan-progress-track enan-wifi-bar"><div class="enan-progress-fill gold" style="width:' + wirelessLoad(entry) + '%"></div></div>' +
+        '</div>';
     }).join('');
+  }
+
+  function buildPortRows(builtinPorts, switchData, devMap, vlanMap) {
+    const rows = [];
+    const switchPorts = Array.isArray(safeObject(switchData).ports) ? switchData.ports : [];
+    const haveStates = !!safeObject(switchData).haveStates;
+    const baseCarrier = (devAt(devMap, 'eth0').carrier === true);
+
+    /* swconfig targets first: real LAN/WAN switch ports with link state,
+       exactly like the official Switch page. Byte counters come from the
+       port's VLAN device (eth0.<vid>). */
+    if (switchPorts.length) {
+      switchPorts.forEach(function(port) {
+        const vid = vlanMap[port.port];
+        const vlanDev = vid != null ? 'eth0.' + vid : null;
+        const info = devAt(devMap, vlanDev);
+        let up = port.link === true;
+        if (!up && (!haveStates || port.link == null)) {
+          /* swconfig state unavailable: fall back to the carrier of the
+             port's VLAN device, or of the switch uplink. */
+          up = (vlanDev ? info.carrier === true : false) || baseCarrier;
+        }
+        const speed = port.speed || (vlanDev ? info.speed : null) || (baseCarrier ? devAt(devMap, 'eth0').speed : null);
+        rows.push({
+          name: port.label.toUpperCase(),
+          device: vlanDev || port.label,
+          role: port.role,
+          isUp: up,
+          speed: speed,
+          duplex: port.duplex || (vlanDev ? info.duplex : null),
+          rx: info.rx,
+          tx: info.tx,
+          hasTraffic: info.present,
+          icon: port.role === 'wan' ? icons.wan : icons.lan
+        });
+      });
+      return rows;
+    }
+
+    /* DSA / builtin ports: each port is a real net device with counters. */
+    if (Array.isArray(builtinPorts) && builtinPorts.length) {
+      builtinPorts.forEach(function(port) {
+        const item = safeObject(port);
+        const device = item.device || item.name;
+        const info = devAt(devMap, device);
+        const lower = String(item.label || device || '').toLowerCase();
+        const role = item.role || (lower.indexOf('wan') === 0 ? 'wan' : (lower.indexOf('lan') === 0 ? 'lan' : 'unknown'));
+        rows.push({
+          name: String(item.label || device || '').toUpperCase(),
+          device: device,
+          role: role,
+          isUp: info.carrier === true || info.up === true,
+          speed: info.speed,
+          duplex: info.duplex,
+          rx: info.rx,
+          tx: info.tx,
+          hasTraffic: info.present,
+          icon: role === 'wan' ? icons.wan : icons.lan
+        });
+      });
+      return rows;
+    }
+
+    return rows;
   }
 
   function updateNetworkInterfaces(rows) {
@@ -818,9 +810,77 @@
       return;
     }
     container.innerHTML = rows.map(function(row) {
-      const speed = row.speed ? row.speed + ' Mbps' : 'N/A';
-      return '<div class="enan-net-item ' + (row.isUp ? 'up' : '') + '"><div class="enan-net-icon">' + row.icon + '</div><div class="enan-net-name">' + escapeHtml(row.name) + '</div><div class="enan-net-status">' + (row.isUp ? 'UP' : 'DOWN') + '</div><div class="enan-net-speed">' + escapeHtml(speed) + '</div><div class="enan-net-traffic"><span class="down">↓ ' + escapeHtml(formatBytes(row.rx)) + '</span><span class="up">↑ ' + escapeHtml(formatBytes(row.tx)) + '</span></div></div>';
+      const speed = row.speed ? row.speed + ' Mbps' + (row.duplex ? ' ' + row.duplex : '') : 'N/A';
+      const traffic = row.hasTraffic
+        ? '<span class="down">↓ ' + escapeHtml(formatBytes(row.rx)) + '</span><span class="up">↑ ' + escapeHtml(formatBytes(row.tx)) + '</span>'
+        : '<span class="muted">—</span>';
+      return '<div class="enan-net-item ' + (row.isUp ? 'up' : '') + '"><div class="enan-net-icon">' + row.icon + '</div><div class="enan-net-name">' + escapeHtml(row.name) + '</div><div class="enan-net-status">' + (row.isUp ? 'UP' : 'DOWN') + '</div><div class="enan-net-speed">' + escapeHtml(speed) + '</div><div class="enan-net-traffic">' + traffic + '</div></div>';
     }).join('');
+  }
+
+  /* ── main update tick ──────────────────────────────────────────── */
+
+  function updateDashboard() {
+    if (window._enanDashboardUpdating) return;
+    if (typeof L === 'undefined' || !L.rpc) return;
+    window._enanDashboardUpdating = true;
+
+    Promise.all([
+      callRpc('system', 'info'),
+      callRpc('system', 'board'),
+      callRpc('luci-rpc', 'getWirelessDevices'),
+      callNetworkDevices(),
+      callBuiltinPorts(),
+      loadSwitchData(),
+      loadVlanPortMap(),
+      typeof L.require === 'function' ? L.require('fs') : Promise.resolve(null)
+    ]).then(function(data) {
+      const systemInfo = safeObject(data[0]);
+      const board = safeObject(data[1]);
+      const wirelessDevices = data[2];
+      const netdevs = safeObject(data[3]);
+      const builtinPorts = Array.isArray(data[4]) ? data[4] : [];
+      const switchData = safeObject(data[5]);
+      const vlanMap = safeObject(data[6]);
+      const fs = data[7];
+
+      const procPromise = fs ? readProcNetDev(fs) : Promise.resolve({});
+
+      return Promise.all([loadWirelessData(wirelessDevices), procPromise]).then(function(part2) {
+        const wireless = part2[0];
+        const devMap = buildDevMap(netdevs, safeObject(part2[1]));
+        const rates = computeRates(wireless.map(function(entry) { return entry.ifname; }), devMap);
+
+        /* Total traffic since boot: sum of the physical top-level net
+           device counters (VLAN/bridge children would double count). */
+        let totalTraffic = 0;
+        Object.keys(devMap).forEach(function(name) {
+          if (!isPhysicalNetdev(name)) return;
+          const info = devAt(devMap, name);
+          totalTraffic += info.rx + info.tx;
+        });
+
+        const rows = buildPortRows(builtinPorts, switchData, devMap, vlanMap);
+
+        const metricsPromise = fs
+          ? Promise.all([readHardwareMetrics(fs), readConntrack(fs)])
+          : Promise.resolve([{ cpuMHz: null, temperature: null }, null]);
+
+        return metricsPromise.then(function(metrics) {
+          const hardware = safeObject(metrics[0]);
+          const conntrack = metrics[1];
+          updateHeader(systemInfo, board);
+          updateStatsGrid(systemInfo, hardware, conntrack, wireless, totalTraffic);
+          updateSystemResources(systemInfo, board, hardware);
+          updateWirelessLoad(wireless, rates, devMap);
+          updateNetworkInterfaces(rows);
+        });
+      });
+    }).catch(function(error) {
+      if (window.console && console.warn) console.warn('[ENAN Dashboard] Update error', error);
+    }).then(function() {
+      window._enanDashboardUpdating = false;
+    });
   }
 
   window.enanBuildDashboard = buildDashboard;
