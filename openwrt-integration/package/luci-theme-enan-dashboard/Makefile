@@ -1,3 +1,4 @@
+
 include $(TOPDIR)/rules.mk
 
 # Explicit values are required for packages copied directly under package/;
@@ -26,7 +27,19 @@ define Package/luci-theme-enan-dashboard/postrm
 	uci -q commit luci
 }
 endef
+define Package/luci-theme-enan-dashboard/install
+    # 1. مجلد الثيم الرئيسي (صلاحية 755)
+    $(INSTALL_DIR) $(1)/www/luci-static/enan-dashboard
 
+    # 2. ملفات الواجهة (صلاحية 644)
+    $(INSTALL_DATA) ./htdocs/* $(1)/www/luci-static/enan-dashboard/
+
+    # 3. مجلد uci-defaults (صلاحية 755)
+    $(INSTALL_DIR) $(1)/etc/uci-defaults
+
+    # 4. السكربت نفسه (صلاحية 755) ← هنا يتم منح الصلاحيات
+    $(INSTALL_BIN) ./root/etc/uci-defaults/* $(1)/etc/uci-defaults/
+endef
 # The LuCI feed must be installed before compiling this local package.
 include $(TOPDIR)/feeds/luci/luci.mk
 
