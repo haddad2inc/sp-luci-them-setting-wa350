@@ -1,15 +1,7 @@
-
 /* ============================================
    ENAN Dashboard Theme for LuCI - OpenWrt 24.10
    Professional Router-Style UI | Dark Mode Default
-   Version: 3.4.0
-
-   Notes:
-   * Fonts: fully offline — uses the OpenWrt/system font stack
-     (no external font services).
-   * Layout supports LTR and RTL (html[dir="rtl"]).
-   * Maintenance: this file restyles LuCI core classes. When upgrading
-     LuCI, re-verify the cbi-* and #modal_overlay sections below.
+   Version: 2.0.0
    ============================================ */
 
 /* ─── CSS Variables ─── */
@@ -40,12 +32,6 @@
   --enan-radius: 16px;
   --enan-radius-sm: 12px;
   --enan-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  /* Offline system font stack (OpenWrt standard approach — no web fonts) */
-  --enan-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", "Noto Sans Arabic",
-    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  --enan-font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas,
-    "Liberation Mono", Menlo, monospace;
 }
 
 [data-theme="light"] {
@@ -90,12 +76,9 @@ html { scroll-behavior: smooth; }
 
 body {
   margin: 0; padding: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
   background: var(--enan-bg) !important;
   color: var(--enan-text) !important;
-  font-family: var(--enan-font) !important;
+  font-family: 'Inter', 'Noto Sans Arabic', -apple-system, BlinkMacSystemFont, sans-serif !important;
   font-size: 14px; line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -106,7 +89,7 @@ body {
 /* ─── Layout ─── */
 .enan-layout {
   display: flex;
-  flex: 1 0 auto;
+  min-height: calc(100vh - var(--enan-topbar-height));
 }
 
 /* ─── Top Bar ─── */
@@ -145,7 +128,7 @@ body {
 
 .enan-brand-name {
   color: var(--enan-text) !important;
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: 800 !important;
   letter-spacing: 1.2px !important;
   text-decoration: none !important;
@@ -153,7 +136,7 @@ body {
 
 .enan-hostname {
   color: var(--enan-accent-2) !important;
-  font-size: 12px !important;
+  font-size: 10px !important;
   font-weight: 600 !important;
   letter-spacing: 0.7px !important;
   text-transform: uppercase !important;
@@ -176,7 +159,7 @@ body {
   padding: 6px 10px;
   border-radius: 7px;
   color: var(--enan-text-2);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
   text-decoration: none;
   transition: var(--enan-transition);
@@ -278,7 +261,7 @@ body {
   padding: 9px 12px;
   border-radius: 10px;
   color: var(--enan-text-2);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   text-decoration: none;
   transition: all 0.2s ease;
@@ -327,6 +310,7 @@ body {
   padding: 24px;
   max-width: calc(100% - var(--enan-sidebar-width));
   transition: var(--enan-transition);
+  min-height: calc(100vh - var(--enan-topbar-height));
 }
 
 /* ─── Dashboard Header ─── */
@@ -421,7 +405,7 @@ body {
 }
 
 .enan-dash-card-value {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 800;
   color: var(--enan-text);
   line-height: 1.1;
@@ -510,14 +494,13 @@ body {
 .enan-progress-label-name {
   color: var(--enan-text-2);
   font-weight: 500;
-  font-size: 12px;
 }
 
 .enan-progress-label-value {
   color: var(--enan-text);
   font-weight: 700;
-  font-family: var(--enan-font-mono);
-  font-size: 12px;
+  font-family: 'SF Mono', monospace;
+  font-size: 11px;
 }
 
 .enan-progress-track {
@@ -587,7 +570,7 @@ body {
 }
 
 .enan-wifi-clients {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--enan-text-3);
   font-weight: 500;
 }
@@ -599,14 +582,13 @@ body {
   margin-top: 8px;
   font-size: 11px;
   color: var(--enan-text-3);
-  font-family: var(--enan-font-mono);
+  font-family: 'SF Mono', monospace;
 }
 
 .enan-wifi-stats span {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
 }
 
 .enan-wifi-bar {
@@ -661,7 +643,7 @@ body {
 }
 
 .enan-net-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--enan-text);
   margin-bottom: 2px;
@@ -677,9 +659,9 @@ body {
 }
 
 .enan-net-speed {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--enan-text-3);
-  font-family: var(--enan-font-mono);
+  font-family: 'SF Mono', monospace;
 }
 
 .enan-net-traffic {
@@ -687,8 +669,8 @@ body {
   justify-content: center;
   gap: 12px;
   margin-top: 6px;
-  font-size: 11px;
-  font-family: var(--enan-font-mono);
+  font-size: 10px;
+  font-family: 'SF Mono', monospace;
 }
 
 .enan-net-traffic .down {
@@ -737,20 +719,6 @@ body {
   font-weight: 500;
 }
 
-/* Standard LuCI attribution in the footer */
-.enan-footer-powered {
-  color: var(--enan-text-3);
-  font-weight: 500;
-}
-.enan-footer-powered a {
-  color: var(--enan-text-2);
-  text-decoration: none;
-}
-.enan-footer-powered a:hover {
-  color: var(--enan-accent);
-  text-decoration: underline;
-}
-
 /* Theme Toggle in Footer */
 .enan-theme-toggle {
   width: 36px; height: 36px;
@@ -778,48 +746,15 @@ body {
 
 /* ─── Flash Messages ─── */
 .enan-flash-container { margin-bottom: 20px; }
-
-/* ─── LuCI alert messages (.alert-message is the official LuCI class) ─── */
-.alert-message {
+.enan-flash-container .alert {
   border-radius: 12px;
   padding: 14px 18px;
-  border: 1px solid var(--enan-border);
-  border-inline-start: 4px solid var(--enan-info);
-  background: var(--enan-surface);
+  border: none;
   box-shadow: var(--enan-card-shadow);
-  color: var(--enan-text-2);
   font-size: 13px;
   font-weight: 500;
   margin-bottom: 10px;
 }
-.alert-message h4 {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--enan-text);
-}
-.alert-message p { margin: 0 0 8px; line-height: 1.55; }
-.alert-message .right { text-align: end; }
-.alert-message .btn {
-  display: inline-block;
-  padding: 6px 14px;
-  border-radius: 7px;
-  background: var(--enan-surface-2);
-  border: 1px solid var(--enan-border-light);
-  color: var(--enan-accent);
-  font-size: 12px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.alert-message .btn:hover { background: var(--enan-accent-glow); }
-.alert-message.warning { border-inline-start-color: var(--enan-warning); }
-.alert-message.warning h4 { color: var(--enan-warning); }
-.alert-message.error { border-inline-start-color: var(--enan-danger); }
-.alert-message.error h4 { color: var(--enan-danger); }
-.alert-message.success { border-inline-start-color: var(--enan-success); }
-.alert-message.success h4 { color: var(--enan-success); }
-.alert-message.notice { border-inline-start-color: var(--enan-info); }
-.enan-flash-container .alert-message { margin-bottom: 10px; }
 
 /* ─── LuCI Content Styling ─── */
 .cbi-section,
@@ -908,59 +843,23 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--enan-accent-2); }
 
 /* ─── Responsive ─── */
-/* ─── Hamburger button (mobile drawer) ─── */
-.enan-menu-btn {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 36px; height: 36px;
-  border-radius: 9px;
-  background: var(--enan-surface-2);
-  border: 1px solid var(--enan-border);
-  color: var(--enan-text);
-  cursor: pointer;
-  margin-inline-end: 4px;
-  flex: 0 0 auto;
-}
-.enan-menu-btn svg { width: 18px; height: 18px; }
-
-/* Backdrop shown behind the open sidebar drawer on small screens */
-.enan-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: 1000;
-  display: none;
-}
-
 @media (max-width: 860px) {
-  /* The sidebar becomes an off-canvas drawer; the top bar gains a
-     hamburger button. The horizontal top navigation stays until 640px. */
-  .enan-menu-btn { display: flex; }
+  :root { --enan-sidebar-width: 176px; }
   .enan-topbar { padding: 0 12px !important; }
-  .enan-sidebar {
-    width: 232px;
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    z-index: 1001;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  }
-  body.enan-sidebar-open .enan-sidebar { transform: translateX(0); }
-  body.enan-sidebar-open .enan-backdrop { display: block; }
-  .enan-main { margin-left: 0; max-width: 100%; padding: 18px; }
-  .enan-footer { margin-left: 0; }
   .enan-topnav-item { padding: 8px 8px; font-size: 11px; }
   .enan-topnav-item svg { width: 12px; height: 12px; }
+  .enan-main { padding: 18px; }
 }
 
 @media (max-width: 640px) {
-  /* Phones: the horizontal top navigation is intentionally hidden;
-     navigation happens through the sidebar drawer. */
-  .enan-topnav { display: none; }
+  :root { --enan-sidebar-width: 148px; --enan-topbar-height: 52px; }
   .enan-topbar { gap: 6px; }
   .enan-topbar-brand { gap: 5px !important; }
   .enan-brand-name { font-size: 14px !important; letter-spacing: 1px !important; }
   .enan-hostname { display: none; }
+  .enan-topnav { gap: 0; }
+  .enan-topnav-item { padding: 8px 5px; font-size: 9px; }
+  .enan-topnav-item svg { display: none !important; }
   .enan-user-btn { padding: 4px 6px; font-size: 10px; }
   .enan-user-avatar { width: 20px; height: 20px; }
   .enan-main { padding: 14px 10px; }
@@ -973,6 +872,10 @@ body {
 }
 
 @media (max-width: 420px) {
+  :root { --enan-sidebar-width: 0px; }
+  .enan-sidebar { display: none; }
+  .enan-topnav { display: none; }
+  .enan-main { margin-left: 0; max-width: 100%; }
   .enan-dash-grid { grid-template-columns: 1fr; }
 }
 
@@ -1135,7 +1038,7 @@ body {
   display: block;
   padding: 7px 10px;
   color: var(--enan-text-3) !important;
-  font-size: 12px;
+  font-size: 11px;
   text-decoration: none !important;
   border-radius: 6px;
   transition: var(--enan-transition);
@@ -1259,14 +1162,12 @@ body {
   line-height: 1.55;
 }
 .cbi-value-description { margin-top: 5px; }
-.cbi-value-field textarea,
-.cbi-value-field .cbi-value-description { width: 100%; max-width: 620px; }
 .cbi-value-field input:not([type="checkbox"]):not([type="radio"]),
 .cbi-value-field select,
+.cbi-value-field textarea,
 .cbi-input-select,
 .cbi-input-text {
-  width: auto !important;
-  min-width: 200px;
+  width: 100% !important;
   max-width: 620px;
   min-height: 38px;
   background: var(--enan-surface-2) !important;
@@ -1653,7 +1554,7 @@ body.modal-overlay-active #modal_overlay {
   z-index: 12000 !important;
   width: max-content !important;
   min-width: 100% !important;
-  max-width: min(480px, calc(100vw - 32px)) !important;
+  max-width: min(360px, calc(100vw - 32px)) !important;
   max-height: 320px !important;
   overflow-y: auto !important;
   margin: 0 !important;
@@ -1687,17 +1588,9 @@ body.modal-overlay-active #modal_overlay {
 }
 
 /* Device and other CBI selectors are allowed to use the full form width. */
-.cbi-value-field > .cbi-dropdown {
-  width: fit-content !important;
-  min-width: 190px;
-  max-width: 620px;
-}
+.cbi-value-field > .cbi-dropdown,
 .cbi-value-field > select,
-.cbi-value-field > .cbi-input-select {
-  width: auto !important;
-  min-width: 190px;
-  max-width: 100%;
-}
+.cbi-value-field > .cbi-input-select { width: min(100%, 760px) !important; }
 .cbi-map,
 .cbi-section,
 .cbi-map > form,
@@ -1715,19 +1608,15 @@ body[class*="node-admin-network-wireless"] .cbi-value {
   padding-left: 24px !important;
   padding-right: 24px !important;
 }
-body[class*="node-admin-network-wireless"] .cbi-value-field textarea {
-  width: 100% !important;
-  max-width: 860px !important;
-}
 body[class*="node-admin-network-wireless"] .cbi-value-field input:not([type="checkbox"]):not([type="radio"]),
 body[class*="node-admin-network-wireless"] .cbi-value-field select,
+body[class*="node-admin-network-wireless"] .cbi-value-field textarea,
 body[class*="node-admin-network-wireless"] .cbi-value-field .cbi-dropdown {
-  width: auto !important;
-  min-width: 200px;
-  max-width: 860px !important;
+  width: min(100%, 860px) !important;
+  max-width: none !important;
 }
 body[class*="node-admin-network-wireless"] .cbi-section-table,
-body[class*="node-admin-network-wireless"] .table { min-width: 0; max-width: 100%; }
+body[class*="node-admin-network-wireless"] .table { min-width: 760px; }
 
 /* Interfaces: one clean row per interface; details are shown by LuCI tooltip on hover. */
 .ifacebox,
@@ -1738,62 +1627,39 @@ body[class*="node-admin-network-wireless"] .table { min-width: 0; max-width: 100
   border-bottom: 1px solid var(--enan-border) !important;
 }
 .ifacebox {
-  display: inline-flex !important;
-  flex-direction: column;
-  align-items: stretch;
-  width: auto !important;
-  min-width: 180px;
-  max-width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  width: 100% !important;
+  max-width: none !important;
   min-height: 72px !important;
-  margin: 0 auto !important;
-  padding: 0 !important;
+  margin: 0 !important;
+  padding: 14px 18px !important;
   background: transparent !important;
-  border: 1px solid var(--enan-border) !important;
-  border-radius: 8px !important;
-  text-align: center !important;
-  overflow: visible !important;
-  vertical-align: top;
-}
-.ifacebox-head {
-  display: block !important;
-  padding: 4px 10px !important;
-  background: var(--enan-surface-3) !important;
+  border: 0 !important;
   border-bottom: 1px solid var(--enan-border) !important;
-  color: var(--enan-text) !important;
-  font-weight: 600;
-  font-size: 12px;
+  border-radius: 0 !important;
+  text-align: left !important;
 }
 .ifacebox:hover,
 .network-interface:hover { background: var(--enan-accent-glow) !important; }
+.ifacebox .ifacebox-head,
+.ifacebox .ifacebox-body,
 .ifacebox .ifacebox-footer { background: transparent !important; border: 0 !important; }
 .ifacebox img,
 .ifacebox svg,
 .ifacebadge img,
 .ifacebadge svg {
-  width: 24px !important;
-  height: 24px !important;
-  max-width: 24px !important;
-  max-height: 24px !important;
+  width: 28px !important;
+  height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
   object-fit: contain !important;
 }
-.ifacebox-body {
-  display: block !important;
-  padding: 8px 6px !important;
-  background: transparent !important;
-  border: 0 !important;
-  text-align: center;
-}
-.ifacebox-body .cbi-tooltip-container {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-}
-.ifacebox-body small {
-  display: block;
-  color: var(--enan-text-3);
-  font-size: 11px;
-  margin-top: 4px;
-}
+.ifacebox .ifacebox-body,
+.ifacebox .ifacebox-head { flex: 1 1 auto !important; min-width: 0 !important; }
+.ifacebox .ifacebox-body { display: block !important; }
+.ifacebox .ifacebox-body > * { margin-right: 8px; }
 .cbi-tooltip,
 .ifacebox .cbi-tooltip,
 .ifacebox [data-tooltip] { cursor: help !important; }
@@ -2025,11 +1891,7 @@ header [data-indicator][data-style="inactive"] { opacity: .65; }
   background: var(--enan-accent-glow) !important;
 }
 .cbi-value-field { position: relative !important; overflow: visible !important; }
-.cbi-value-field .cbi-dropdown {
-  width: fit-content !important;
-  min-width: 190px;
-  max-width: 620px;
-}
+.cbi-value-field .cbi-dropdown { width: 100% !important; max-width: 860px !important; }
 .cbi-value-field .cbi-dropdown[open] { z-index: 12001 !important; }
 
 /* Keep the visual split button intact while hiding the unselected action list. */
@@ -2175,20 +2037,13 @@ body[class*="node-admin-system-backup"] .cbi-value {
 #modal_overlay .cbi-value-field,
 #modal_overlay .cbi-value-field input:not([type="checkbox"]):not([type="radio"]),
 #modal_overlay .cbi-value-field select,
-#modal_overlay .cbi-value-field .cbi-dropdown {
-  width: fit-content !important;
-  min-width: 200px;
-  max-width: 620px;
-}
+#modal_overlay .cbi-value-field textarea,
+#modal_overlay .cbi-value-field .cbi-dropdown,
 #modal_overlay .cbi-value-field .cbi-input-select,
 #modal_overlay .cbi-value-field .cbi-input-text {
-  width: auto !important;
-  min-width: 200px;
-  max-width: 620px;
-}
-#modal_overlay .cbi-value-field textarea {
   width: 100% !important;
-  max-width: 620px !important;
+  max-width: none !important;
+  min-width: 0 !important;
 }
 #modal_overlay .cbi-value {
   grid-template-columns: minmax(210px, 24%) minmax(0, 1fr) !important;
@@ -2621,7 +2476,7 @@ body[class*="node-admin-system-backup"] .cbi-value {
 .enan-brand-name { white-space: nowrap !important; }
 .enan-hostname { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .enan-topnav { gap: 0 !important; }
-.enan-topnav-item { font-size: 12px !important; padding: 6px 8px !important; gap: 4px !important; }
+.enan-topnav-item { font-size: 11px !important; padding: 6px 8px !important; gap: 4px !important; }
 
 
 /* =========================================================
@@ -2639,8 +2494,7 @@ body[class*="node-admin-system-backup"] .cbi-value {
 #modal_overlay .cbi-value-field > .cbi-dropdown,
 #modal_overlay .cbi-value-field > .cbi-input-select,
 #modal_overlay .cbi-value-field > .cbi-input-text {
-  width: auto !important;
-  min-width: 200px;
+  width: 100% !important;
   max-width: 620px !important;
   box-sizing: border-box !important;
 }
@@ -2725,434 +2579,3 @@ body[class*="node-admin-system-backup"] .cbi-value {
 body.modal-overlay-active #modal_overlay {
   pointer-events: auto !important;
 }
-
-/* =========================================================
-   RTL support (Arabic, Hebrew, Persian, Urdu)
-   Activated via html[dir="rtl"] set by the theme templates
-   from dispatcher.lang. Flexbox and grid flip automatically;
-   the rules below fix physical left/right positioning.
-   ========================================================= */
-[dir="rtl"] .enan-sidebar {
-  left: auto;
-  right: 0;
-  border-right: 0;
-  border-left: 1px solid var(--enan-border);
-}
-[dir="rtl"] .enan-main,
-[dir="rtl"] .enan-footer {
-  margin-left: 0;
-  margin-right: var(--enan-sidebar-width);
-}
-[dir="rtl"] .enan-theme-toggle {
-  right: auto;
-  left: 20px;
-}
-[dir="rtl"] .enan-topnav-item,
-[dir="rtl"] .enan-menu-trigger,
-[dir="rtl"] .enan-sidebar-item,
-[dir="rtl"] .enan-sidebar-subitem,
-[dir="rtl"] .enan-dropdown-item {
-  text-align: right;
-}
-[dir="rtl"] .enan-dropdown-menu {
-  left: auto;
-  right: 0;
-}
-[dir="rtl"] .enan-dropdown-entry.open > .enan-submenu {
-  left: auto;
-  right: calc(100% + 6px);
-}
-[dir="rtl"] .enan-sidebar-submenu {
-  margin-left: 0;
-  margin-right: 22px;
-  padding-left: 0;
-  padding-right: 10px;
-  border-left: 0;
-  border-right: 1px solid var(--enan-border-light);
-}
-[dir="rtl"] .enan-sidebar-nested-trigger .enan-nav-chevron,
-[dir="rtl"] .enan-sidebar-trigger .enan-nav-chevron {
-  margin-left: 0;
-  margin-right: auto;
-}
-[dir="rtl"] .enan-sidebar-submenu-nested {
-  margin-left: 0;
-  margin-right: 12px;
-  padding-left: 0;
-  padding-right: 9px;
-}
-[dir="rtl"] .enan-nav-chevron { margin-left: 0; margin-right: 2px; }
-[dir="rtl"] .enan-hostname { margin-left: 0; margin-right: 4px; }
-[dir="rtl"] .enan-topnav-item svg { margin-right: 0; margin-left: 4px; }
-
-/* Form and table alignment */
-[dir="rtl"] .cbi-value-title { text-align: right !important; }
-[dir="rtl"] .td.left { text-align: right; }
-[dir="rtl"] .td.right { text-align: left; }
-[dir="rtl"] .cbi-value-description,
-[dir="rtl"] .cbi-section-descr,
-[dir="rtl"] .cbi-map-descr { text-align: right; }
-
-/* LuCI dropdown lists and split buttons */
-[dir="rtl"] .cbi-page-actions .cbi-dropdown > ul.dropdown {
-  right: auto !important;
-  left: 0 !important;
-}
-[dir="rtl"] .cbi-page-actions .cbi-dropdown.cbi-button > .open,
-[dir="rtl"] .cbi-page-actions .cbi-dropdown.btn > .open {
-  border-left: 0;
-  border-right: 1px solid rgba(11, 16, 32, 0.35) !important;
-}
-[dir="rtl"] .cbi-dropdown > ul.dropdown > li,
-[dir="rtl"] .cbi-dropdown ul.preview > li { text-align: right; }
-
-/* Alert messages already use border-inline-start (flip automatically) */
-[dir="rtl"] .alert-message .right { text-align: left; }
-
-/* Mobile drawer flips to the right side in RTL */
-@media (max-width: 860px) {
-  [dir="rtl"] .enan-sidebar { transform: translateX(100%); }
-  [dir="rtl"] body.enan-sidebar-open .enan-sidebar { transform: translateX(0); }
-  [dir="rtl"] .enan-main,
-  [dir="rtl"] .enan-footer { margin-right: 0; }
-}
-@media (max-width: 640px) {
-  [dir="rtl"] .enan-footer { margin-right: 0 !important; }
-}
-
-/* =========================================================
-   v3.5.0 dashboard additions: wireless totals, muted values
-   ========================================================= */
-.enan-wifi-totals {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--enan-text-3);
-  font-family: var(--enan-font-mono);
-}
-.enan-wifi-stats span { white-space: nowrap; }
-.enan-net-traffic .muted,
-.enan-net-speed .muted { color: var(--enan-text-3); }
-
-/* =========================================================
-   Status include cards — official LuCI 24.10 DOM
-   (section > h3 + div > table.table). enan-dashboard.js tags
-   these sections with .enan-status-section, so the table and
-   progressbar rules above apply; the bare h3 gets the same
-   card-header treatment as .cbi-title here.
-   ========================================================= */
-.enan-status-section > h3:first-child {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 16px !important;
-  min-height: 54px !important;
-  margin: 0 !important;
-  padding: 16px 20px !important;
-  color: var(--enan-text) !important;
-  font-size: 14px !important;
-  font-weight: 700 !important;
-  background: var(--enan-surface-2) !important;
-  border-bottom: 1px solid var(--enan-border) !important;
-  line-height: 1.4 !important;
-}
-
-/* Global progressbar contract (status includes and any other page) */
-.cbi-progressbar {
-  display: block;
-  width: 100%;
-  height: 8px;
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid var(--enan-border-light);
-  border-radius: 999px;
-  background: var(--enan-surface-3);
-}
-.cbi-progressbar > div {
-  display: block;
-  height: 100%;
-  min-width: 2px;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--enan-accent), var(--enan-accent-2));
-}
-
-/* =========================================================
-   LuCI div-table display contract (identical semantics to the
-   bootstrap cascade): modern LuCI tables are divs with
-   .table/.tr/.td/.th classes and need explicit display rules,
-   otherwise rows collapse and action columns disappear.
-   ========================================================= */
-.table { display: table; }
-.tr { display: table-row; }
-.td, .th { display: table-cell; }
-.cbi-section-table { display: table; width: 100%; max-width: 100%; }
-.cbi-section-table .tr { display: table-row; }
-.cbi-section-table .th,
-.cbi-section-table .td,
-.table > .tr > .td,
-.table > .tr > .th,
-.table > tbody > .tr > .td,
-.table > tbody > .tr > .th {
-  display: table-cell;
-  padding: 12px 14px;
-  vertical-align: middle;
-  color: var(--enan-text-2);
-  font-size: 13px;
-  border-bottom: 1px solid var(--enan-border);
-}
-.cbi-section-table .th,
-.table > .tr > .th,
-.table > tbody > .tr > .th {
-  background: var(--enan-surface-2);
-  color: var(--enan-text-3);
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.cbi-section-table .tr:last-child > .td,
-.table > .tr:last-child > .td,
-.table > tbody > .tr:last-child > .td { border-bottom: 0; }
-.th.cbi-section-actions,
-.td.cbi-section-actions {
-  width: 1%;
-  white-space: nowrap;
-  text-align: right;
-  vertical-align: middle;
-}
-.th.cbi-section-actions > *,
-.td.cbi-section-actions > * {
-  display: inline-block;
-  margin-left: 5px;
-  vertical-align: middle;
-}
-
-/* Add/remove section button (e.g. Watchcat Delete) sits right-aligned
-   above the tabs, like the bootstrap theme. */
-.cbi-section-remove {
-  padding: 10px 20px;
-  text-align: right;
-}
-.cbi-section-remove .cbi-button { margin: 0; }
-
-/* =========================================================
-   Official LuCI tooltip contract (cbi-tooltip-container):
-   every device/zone badge carries its own tooltip; hovering
-   that badge shows only its tooltip.
-   ========================================================= */
-.cbi-tooltip-container { cursor: help; }
-.cbi-tooltip {
-  position: absolute;
-  z-index: 1000;
-  left: -10000px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--enan-border-light);
-  border-radius: 8px;
-  background: var(--enan-surface-2);
-  color: var(--enan-text-2);
-  white-space: pre;
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.7;
-  opacity: 0;
-  transition: opacity .25s ease-in;
-}
-.cbi-tooltip-container:hover .cbi-tooltip:not(:empty) {
-  left: auto;
-  opacity: 1;
-}
-.zonebadge .cbi-tooltip {
-  padding: 1px;
-  background: inherit;
-  margin: -1.6em 0 0 -5px;
-  border-radius: 3px;
-  pointer-events: none;
-}
-.zonebadge .cbi-tooltip > * {
-  margin: 1px;
-  z-index: 2;
-  position: relative;
-}
-
-/* =========================================================
-   v3.5.6 — unified field widths, per-device tooltips,
-   action-button overflow and device-map layout
-   ========================================================= */
-
-/* Device badges stay in ONE line inside the interface box */
-.ifacebox .ifacebox-body > * { margin: 0 !important; }
-
-/* Deterministic per-device tooltips: each tooltip is anchored below its
-   OWN badge (direct-child hover). An ancestor container's generic tooltip
-   is suppressed while a nested badge is hovered (:has). */
-.cbi-tooltip-container { cursor: help; }
-.cbi-tooltip {
-  position: absolute;
-  z-index: 1000;
-  left: -10000px;
-  pointer-events: none;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--enan-border-light);
-  border-radius: 8px;
-  background: var(--enan-surface-2);
-  color: var(--enan-text-2);
-  white-space: pre;
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.7;
-  opacity: 0;
-  transition: opacity .25s ease-in;
-}
-.cbi-tooltip-container:hover .cbi-tooltip:not(:empty) {
-  left: auto;
-  opacity: 1;
-}
-
-/* Row action buttons: compact and wrappable so they never overflow
-   the card edge on Interfaces / Wireless tables */
-.td.cbi-section-actions,
-.th.cbi-section-actions { white-space: nowrap; }
-.cbi-section-table .cbi-section-actions .cbi-button,
-.table .cbi-section-actions .cbi-button {
-  min-height: 30px !important;
-  padding: 6px 10px !important;
-  font-size: 10px !important;
-  letter-spacing: .2px !important;
-  margin: 2px 0 2px 5px !important;
-}
-
-/* Dynamic lists (IPv6 addresses, DNS servers...): the add button stays
-   a small control instead of a full-width bar */
-.cbi-dynlist {
-  display: inline-flex !important;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  min-width: 200px;
-  max-width: 620px;
-}
-.cbi-value-field > .cbi-button,
-.cbi-dynlist .cbi-button {
-  width: auto !important;
-  align-self: flex-start;
-}
-
-/* =========================================================
-   v3.5.8 — final width caps, bootstrap ifacebox parity,
-   mobile stacked tables, in-card action buttons
-   ========================================================= */
-.cbi-value-field .cbi-dropdown,
-#modal_overlay .cbi-value-field .cbi-dropdown {
-  width: auto !important;
-  min-width: 190px;
-  max-width: 420px !important;
-}
-.cbi-dropdown[open] > ul.dropdown {
-  width: max-content !important;
-  min-width: 100% !important;
-}
-
-/* Tables scroll inside their card instead of escaping it */
-.cbi-section-node,
-.cbi-section-node-tabbed { overflow-x: auto; }
-
-/* Narrow screens: stack table rows like the official themes
-   (each cell becomes a labelled block) */
-@media (max-width: 700px) {
-  .cbi-section-table .th { display: none !important; }
-  .cbi-section-table .tr {
-    display: block !important;
-    border-bottom: 1px solid var(--enan-border);
-    padding: 10px 0;
-  }
-  .cbi-section-table .td {
-    display: block !important;
-    border: 0 !important;
-    padding: 4px 14px !important;
-    width: auto !important;
-  }
-  .cbi-section-table .td::before {
-    content: attr(data-title);
-    display: block;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--enan-text-3);
-    text-transform: uppercase;
-    letter-spacing: .4px;
-    margin-bottom: 2px;
-  }
-  .cbi-section-table .td:empty::before { display: none; }
-  .td.cbi-section-actions,
-  .th.cbi-section-actions {
-    white-space: normal !important;
-    text-align: left !important;
-    padding-top: 8px !important;
-  }
-}
-
-/* =========================================================
-   v3.5.9 — interface row parity with bootstrap:
-   fixed 33% device column, centered details, in-card actions,
-   tooltips never clipped
-   ========================================================= */
-body[class*="node-admin-network"] .cbi-section-table .tr > .td:first-child,
-body[class*="node-admin-status"] .cbi-section-table .tr > .td:first-child {
-  width: 33%;
-  text-align: center;
-}
-.td.cbi-section-actions {
-  padding-right: 24px !important;
-}
-.cbi-section-table .td.cbi-section-actions .cbi-button:last-child {
-  margin-right: 0 !important;
-}
-/* No ancestor of a tooltip may clip it */
-.ifacebox,
-.ifacebox-body,
-.cbi-section-table .td,
-.table .td { overflow: visible !important; }
-
-/* =========================================================
-   v3.5.10 — deterministic tooltip contract (cannot stick):
-   hidden with display:none unless the device's OWN container
-   is hovered; anchored under that container; never captures
-   the pointer so no cascade/fan-out is possible.
-   ========================================================= */
-.cbi-tooltip-container { position: relative; }
-
-.cbi-tooltip {
-  display: none !important;
-  position: absolute !important;
-  z-index: 1000;
-  top: calc(100% + 6px);
-  left: 0;
-  right: auto;
-  pointer-events: none;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--enan-border-light);
-  border-radius: 8px;
-  background: var(--enan-surface-2);
-  color: var(--enan-text-2);
-  white-space: pre;
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.7;
-  opacity: 1;
-  min-width: 220px;
-}
-
-.cbi-tooltip-container:not(:hover) > .cbi-tooltip {
-  display: none !important;
-}
-
-.cbi-tooltip-container:hover > .cbi-tooltip {
-  display: block !important;
-  animation: enanTooltipIn .15s ease;
-}
-
-@keyframes enanTooltipIn {
-  from { opacity: 0; transform: translateY(-3px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* RTL: anchor to the right edge of the badge */
-[dir="rtl"] .cbi-tooltip { left: auto; right: 0; }
